@@ -1,4 +1,3 @@
-import { Assignee } from '../models/issue';
 export class Issue {
   constructor(name, description, number, moscow, assignee) {
     this.name = name;

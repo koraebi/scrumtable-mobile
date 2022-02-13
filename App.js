@@ -2,10 +2,10 @@ import React, { Component } from 'react';
 import io from 'socket.io-client';
 import { View, Modal, ScrollView, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { SOCKET } from '@env'
-import { getSelectedIssuesFromApi, parseIssuesInfo } from './src/services/api';
 import { Board, BoardRepository } from 'react-native-draganddrop-board'
+import { Issue } from './src/models/issue';
 
-
+let issues = [];
 export default class App extends Component {
 
   socket = io.connect(SOCKET, {
@@ -34,7 +34,8 @@ export default class App extends Component {
                 <Text style={styles.textCardId}>{issue.id}</Text>
                 <Text numberOfLines={1} style={styles.textCard}>{issue.name}</Text>
               </View>
-              <View style={[styles.label, {display: issue.displayLabel, borderColor: issue.textColor, backgroundColor: issue.backgroundColor}]}>
+
+              <View style={[styles.label, {borderColor: issue.textColor, backgroundColor: issue.backgroundColor, display: issue.displayLabel}]}>
                 <Text style={[styles.textLabel, {color: issue.textColor}]}>{issue.label}</Text>
               </View>
             </View>
@@ -74,24 +75,45 @@ export default class App extends Component {
         </ScrollView>
           
         <Pressable
-            style={styles.button}
-            onPress={() => this.setState({
-              showModal: false
-            })}
-          >
-            <Text style={styles.textButton}>FERMER</Text>
+          style={styles.button}
+          onPress={() => this.setState({
+            showModal: false
+          })}
+        >
+          <Text style={styles.textButton}>FERMER</Text>
         </Pressable>
       </Modal>
     </View>);
   }
 
   async componentDidMount() {
-    await this.loadBoard();
+    this.loadBoard();
 
-    this.socket.on('updateMobileIssues', (message) => this.updateIssues(message));
+    this.socket.on('selectIssue', (issue) => this.handleIssueSelection(JSON.parse(issue), true));
+    this.socket.on('unselectIssue', (issue) => this.handleIssueSelection(JSON.parse(issue), false));
   }
 
-  async updateIssues(message) {
+  async loadBoard() {
+    const boardData = [
+      {
+        id: 1,
+        name: 'SELECTED',
+        rows: issues
+      }
+    ];
+
+    this.setState({
+      boardRepository: new BoardRepository(boardData)
+    });
+  }
+
+  async handleIssueSelection(issue, select) {
+    if (select) {
+      issues.push(new Issue(issue.name, issue.description, issue.number, issue.moscow, issue.assignee));
+    } else {
+      issues = issues.filter(selectedIssue => selectedIssue.id !== issue.number);
+    }
+
     await this.loadBoard();
   }
 
@@ -99,20 +121,6 @@ export default class App extends Component {
     this.setState({
       selectedIssue: issue,
       showModal: true
-    });
-  }
-
-  async loadBoard() {
-    const json = await getSelectedIssuesFromApi();
-    const boardData = [
-      {
-        id: 1,
-        name: 'SELECTED',
-        rows: parseIssuesInfo(json) 
-      }
-    ];
-    this.setState({
-      boardRepository: new BoardRepository(boardData)
     });
   }
 }
@@ -129,13 +137,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     textAlign: "left",
     color: "#4734D3",
-    shadowColor: '#171717',
-    shadowOffset: {
-      width: -2, 
-      height: 4
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
     margin: 10,
     borderColor: '#4734D3',
     borderWidth: 0.5
