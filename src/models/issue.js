@@ -3,6 +3,7 @@ export class Issue {
     this.name = name;
     this.description = description;
     this.id = '#' + number;
+    this.number = number;
     this.label = moscow;
     this.displayLabel = 'flex';
     this.displayAssignee = assignee?.login ? 'flex' : 'none';
@@ -16,7 +17,7 @@ export class Issue {
       case 'Should': 
         this.textColor = '#B9ABC1';
         this.backgroundColor = '#171B3A';
-        break;
+        break; 
       case 'Could': 
         this.textColor = '#68A7CD';
         this.backgroundColor = '#10233B';

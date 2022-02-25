@@ -1,128 +1,88 @@
-import React, { Component } from 'react';
+import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
-import { View, Modal, ScrollView, Text, StyleSheet, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet,  Alert } from 'react-native';
 import { SOCKET } from '@env'
 import { Board, BoardRepository } from 'react-native-draganddrop-board'
 import { Issue } from './src/models/issue';
 
-let issues = [];
-export default class App extends Component {
-
-  socket = io.connect(SOCKET, {
-    transports: ['websocket'],
-    forceNew: true,
-    reconnectionAttempts: 100,
-  });
-
-  state = {
-    boardRepository: new BoardRepository([]),
-    showModal: false,
-    selectedIssue: {}
-  };
-
-  render() {
-    return (
-      <View>
-        <Board
-          boardRepository={this.state.boardRepository}
-          open={(issue) => this.onIssueTouched(issue)}
-          boardBackground='black'
-          onDragEnd={() => {}}
-          cardContent={(issue) => (
-            <View style={styles.card}>
-              <View style={styles.row}>
-                <Text style={styles.textCardId}>{issue.id}</Text>
-                <Text numberOfLines={1} style={styles.textCard}>{issue.name}</Text>
-              </View>
-
-              <View style={[styles.label, {borderColor: issue.textColor, backgroundColor: issue.backgroundColor, display: issue.displayLabel}]}>
-                <Text style={[styles.textLabel, {color: issue.textColor}]}>{issue.label}</Text>
-              </View>
-            </View>
-          )}
-        />
-        <Modal
-          style={styles.modal}
-          animationType="slide"
-          transparent={false}
-          visible={this.state.showModal}
-          onRequestClose={() => {
-            this.setState({
-              showModal: false
-            });
-          }}
-        >
-        <ScrollView style={styles.scrollview}>
-          <View style={styles.row}>
-            <Text style={[styles.text, {fontSize: 30, marginRight: 5}]}>{this.state.selectedIssue.id}</Text>
-
-            <View style={[styles.label, {display: this.state.selectedIssue.displayLabel, right:1, position:'absolute', alignSelf: 'center', borderColor: this.state.selectedIssue.textColor, backgroundColor: this.state.selectedIssue.backgroundColor}]}>
-              <Text style={[styles.textLabel, {color: this.state.selectedIssue.textColor}]}>{this.state.selectedIssue.label}</Text>
-            </View>
-          </View>
-          
-          <Text style={[styles.text, styles.textTitle]}>{this.state.selectedIssue.name}</Text>
-
-          <View style={[styles.row, {display: this.state.selectedIssue.displayAssignee, marginVertical:10}]}>
-            <Image 
-              source={{uri: this.state.selectedIssue.assigneeAvatarUrl}}  
-              style={{width: 50, height: 50, borderRadius: 50/ 2}} 
-            />
-            <Text style={[styles.text, styles.textAssignee]}>{this.state.selectedIssue.assigneeName}</Text>
-          </View>
-          
-          <Text style={[styles.text, styles.textDescription]}>{this.state.selectedIssue.description}</Text>
-        </ScrollView>
-          
-        <Pressable
-          style={styles.button}
-          onPress={() => this.setState({
-            showModal: false
-          })}
-        >
-          <Text style={styles.textButton}>FERMER</Text>
-        </Pressable>
-      </Modal>
-    </View>);
+const boardDataTemplate = [
+  {
+    id: 1,
+    name: 'SELECTED',
+    rows: []
   }
+];
 
-  async componentDidMount() {
-    this.loadBoard();
+export default function App() {
+  let boardRepository = new BoardRepository([]);
 
-    this.socket.on('selectIssue', (issue) => this.handleIssueSelection(JSON.parse(issue), true));
-    this.socket.on('unselectIssue', (issue) => this.handleIssueSelection(JSON.parse(issue), false));
-  }
+  const [boardData, setBoardData] = useState(boardDataTemplate);
 
-  async loadBoard() {
-    const boardData = [
-      {
-        id: 1,
-        name: 'SELECTED',
-        rows: issues
-      }
-    ];
-
-    this.setState({
-      boardRepository: new BoardRepository(boardData)
+  useEffect(() => {
+    const socket = io.connect(SOCKET, {
+      transports: ['websocket'],
+      forceNew: true,
+      reconnectionAttempts: 100,
     });
-  }
 
-  async handleIssueSelection(issue, select) {
-    if (select) {
-      issues.push(new Issue(issue.name, issue.description, issue.number, issue.moscow, issue.assignee));
-    } else {
-      issues = issues.filter(selectedIssue => selectedIssue.id !== issue.number);
+    socket.on('selectIssue', (issue) => handleIssueSelection(JSON.parse(issue), true));
+    socket.on('unselectIssue', (issue) => handleIssueSelection(JSON.parse(issue), false));
+  }, []);
+
+  useEffect(() => {
+    boardRepository.updateData(boardData); 
+  }, [boardData]);
+
+  onIssueTouched = (issue) => {
+    let description = issue.description ?? "";
+
+    if (issue.label !== '') {
+      description += "\n\nLabel : " + issue.label
     }
 
-    await this.loadBoard();
+    if (issue.assigneeName) {
+      description += "\n\nAssigné à : " + issue.assigneeName
+    }
+
+    Alert.alert( 
+      issue.id + "  " + issue.name,
+      description,
+    ) 
   }
 
-  async onIssueTouched(issue) {
-    this.setState({
-      selectedIssue: issue,
-      showModal: true
-    });
+  handleIssueSelection = async (issue, select) => {
+    let data = [...boardData];
+    if (select) {
+      console.log("Selecting issue #" + issue.number);
+      data[0].rows.push(new Issue(issue.name, issue.description, issue.number, issue.moscow, issue.assignee));
+    } else {
+      console.log("Unselecting issue #" + issue.number);
+      data[0].rows = data[0].rows.filter(selectedIssue => selectedIssue.number !== issue.number);
+    }
+
+    setBoardData(data);
   }
+
+  return (
+    <Board
+      boardRepository={boardRepository}
+      open={(issue) => this.onIssueTouched(issue)}
+      boardBackground='black'
+      onDragEnd={() => {}}
+      cardContent={(issue) => (
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Text style={styles.textCardId}>{issue.id}</Text>
+            <Text numberOfLines={1} style={styles.textCard}>{issue.name}</Text>
+          </View>
+
+          <View style={[styles.label, {borderColor: issue.textColor, backgroundColor: issue.backgroundColor, display: issue.displayLabel}]}>
+            <Text style={[styles.textLabel, {color: issue.textColor}]}>{issue.label}</Text>
+          </View>
+        </View>
+      )}
+    />
+  )
 }
 
 const styles = StyleSheet.create({
