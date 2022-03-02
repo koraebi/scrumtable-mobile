@@ -4,7 +4,7 @@ export class Issue {
     this.description = description;
     this.id = '#' + number;
     this.number = number;
-    this.label = moscow;
+    this.label = moscow ?? '';
     this.displayLabel = 'flex';
     this.displayAssignee = assignee?.login ? 'flex' : 'none';
     this.assigneeAvatarUrl = assignee?.avatar_url ?? 'https://avatars.githubusercontent.com/u/54991044?s=40&v=4';

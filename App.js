@@ -1,57 +1,87 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
-import { View, Text, StyleSheet,  Alert } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, Image, Pressable } from 'react-native';
 import { SOCKET } from '@env'
 import { Board, BoardRepository } from 'react-native-draganddrop-board'
 import { Issue } from './src/models/issue';
+import Swiper from 'react-native-swiper'
 
-const boardDataTemplate = [
-  {
-    id: 1,
-    name: 'SELECTED',
-    rows: []
-  }
-];
+const boardRepository = new BoardRepository([]);
 
 export default function App() {
-  let boardRepository = new BoardRepository([]);
-
-  const [boardData, setBoardData] = useState(boardDataTemplate);
+  const [boardData, setBoardData] = useState([]);
+  const [selectedIssues, setSelectedIssues] = useState([]);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
+    console.log("Init"); 
+
     const socket = io.connect(SOCKET, {
       transports: ['websocket'],
-      forceNew: true,
+      forceNew: false,
       reconnectionAttempts: 100,
     });
-
     socket.on('selectIssue', (issue) => handleIssueSelection(JSON.parse(issue), true));
     socket.on('unselectIssue', (issue) => handleIssueSelection(JSON.parse(issue), false));
+
+    const data = [
+      {
+        id: 1,
+        name: 'SELECTED',
+        rows: []
+      }
+    ];
+    boardRepository.updateData(data);
+    setBoardData(data);
   }, []);
 
   useEffect(() => {
-    boardRepository.updateData(boardData); 
+    console.log('Board reloaded');
   }, [boardData]);
 
-  onIssueTouched = (issue) => {
-    let description = issue.description ?? "";
+  onIssueTouched = (selectedIssue) => {
+    let issues = [selectedIssue];
 
-    if (issue.label !== '') {
-      description += "\n\nLabel : " + issue.label
+    if (boardData[0].rows.length > 1) {
+      issues = issues.concat(boardData[0].rows.filter(issue => issue.number !== selectedIssue.number));
     }
 
-    if (issue.assigneeName) {
-      description += "\n\nAssigné à : " + issue.assigneeName
+    let selectedIssues = []
+
+    for (let i = 0; i < issues.length; i++) {
+      const issue = issues[i];
+      selectedIssues.push(
+        <ScrollView style={styles.scrollview}>
+          <View style={styles.row}>
+            <Text style={[styles.text, {fontSize: 30, marginRight: 5}]}>{issue.id}</Text>
+
+            <View style={[styles.label, {right:1, position:'absolute', alignSelf: 'center', borderColor: issue.textColor, backgroundColor: issue.backgroundColor}]}>
+              <Text style={[styles.textLabel, {color: issue.textColor}]}>{issue.label}</Text>
+            </View>
+          </View>
+          
+          <Text style={[styles.text, styles.textTitle]}>{issue.name}</Text>
+
+          <View style={[styles.row, {display: issue.displayAssignee, marginVertical:10}]}>
+            <Image 
+              source={{uri: issue.assigneeAvatarUrl}}  
+              style={{width: 50, height: 50, borderRadius: 50/ 2}} 
+            />
+            <Text style={[styles.text, styles.textAssignee]}>{issue.assigneeName}</Text>
+          </View>
+          
+          <Text style={[styles.text, styles.textDescription]}>{issue.description}</Text>
+        </ScrollView>
+      )
     }
 
-    Alert.alert( 
-      issue.id + "  " + issue.name,
-      description,
-    ) 
+    setSelectedIssues(selectedIssues);
+    setShowModal(true);
   }
 
   handleIssueSelection = async (issue, select) => {
     let data = [...boardData];
+    
     if (select) {
       console.log("Selecting issue #" + issue.number);
       data[0].rows.push(new Issue(issue.name, issue.description, issue.number, issue.moscow, issue.assignee));
@@ -60,28 +90,48 @@ export default function App() {
       data[0].rows = data[0].rows.filter(selectedIssue => selectedIssue.number !== issue.number);
     }
 
+    boardRepository.updateData(data);
     setBoardData(data);
   }
 
   return (
-    <Board
-      boardRepository={boardRepository}
-      open={(issue) => this.onIssueTouched(issue)}
-      boardBackground='black'
-      onDragEnd={() => {}}
-      cardContent={(issue) => (
-        <View style={styles.card}>
-          <View style={styles.row}>
-            <Text style={styles.textCardId}>{issue.id}</Text>
-            <Text numberOfLines={1} style={styles.textCard}>{issue.name}</Text>
-          </View>
+    <View>
+      <Board
+        boardRepository={boardRepository}
+        open={(issue) => onIssueTouched(issue)}
+        boardBackground='black'
+        onDragEnd={() => {}}
+        cardContent={(issue) => (
+          <View style={styles.card}>
+            <View style={styles.row}>
+              <Text style={styles.textCardId}>{issue.id}</Text>
+              <Text numberOfLines={1} style={styles.textCard}>{issue.name}</Text>
+            </View>
 
-          <View style={[styles.label, {borderColor: issue.textColor, backgroundColor: issue.backgroundColor, display: issue.displayLabel}]}>
-            <Text style={[styles.textLabel, {color: issue.textColor}]}>{issue.label}</Text>
+            <View style={[styles.label, {borderColor: issue.textColor, backgroundColor: issue.backgroundColor, display: issue.displayLabel}]}>
+              <Text style={[styles.textLabel, {color: issue.textColor}]}>{issue.label}</Text>
+            </View>
           </View>
-        </View>
-      )}
-    />
+        )}
+      />
+      <Modal
+          style={styles.modal}
+          animationType="slide" 
+          transparent={false}
+          visible={showModal}
+        >
+          <Swiper style={styles.wrapper} showsButtons={true}>
+            {selectedIssues}
+          </Swiper>
+            
+          <Pressable
+            style={styles.button}
+            onPress={() => setShowModal(false)}
+          >
+            <Text style={styles.textButton}>FERMER</Text>
+          </Pressable>
+      </Modal>
+    </View>
   )
 }
 
@@ -170,7 +220,7 @@ const styles = StyleSheet.create({
     padding: 15,
     elevation: 2,
     marginHorizontal: 50,
-    marginBottom: 30
+    marginBottom: 40
   },
   modal: {
     flexDirection:'row',
